@@ -13,7 +13,7 @@ import { startCaffeinate, stopCaffeinate } from '@/utils/caffeinate';
 import packageJson from '../../package.json';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { spawnHappyCLI } from '@/utils/spawnHappyCLI';
-import { writeDaemonState, DaemonLocallyPersistedState, readDaemonState, acquireDaemonLock, releaseDaemonLock, readSettings, getActiveProfile, getEnvironmentVariables, validateProfileForAgent, getProfileEnvironmentVariables } from '@/persistence';
+import { writeDaemonState, DaemonLocallyPersistedState, readDaemonState, acquireDaemonLock, releaseDaemonLock, readSettings, getEnvironmentVariables, validateProfileForAgent, getProfileEnvironmentVariables } from '@/persistence';
 
 import { cleanupDaemonState, isDaemonRunningCurrentlyInstalledHappyVersion, stopDaemon } from './controlClient';
 import { startDaemonControlServer } from './controlServer';
@@ -53,8 +53,11 @@ async function getProfileEnvironmentVariablesForAgent(
       return {};
     }
 
-    // Get environment variables from profile (new schema)
-    const envVars = getProfileEnvironmentVariables(profile);
+    // Include both profile-defined env vars and CLI-local cached overrides.
+    // Local cache takes precedence to honor machine-local configuration.
+    const profileEnvVars = getProfileEnvironmentVariables(profile);
+    const localMergedEnvVars = await getEnvironmentVariables(profileId);
+    const envVars = { ...profileEnvVars, ...localMergedEnvVars };
 
     logger.debug(`[DAEMON RUN] Loaded ${Object.keys(envVars).length} environment variables from profile ${profileId} for agent ${agentType}`);
     return envVars;
@@ -268,29 +271,10 @@ export async function startDaemon(): Promise<void> {
       try {
 
         // Build environment variables with explicit precedence layers:
-        // Layer 1 (base): Authentication tokens - protected, cannot be overridden
-        // Layer 2 (middle): Profile environment variables - GUI profile OR CLI local profile
-        // Layer 3 (top): Auth tokens again to ensure they're never overridden
+        // Layer 1 (base): Profile environment variables - GUI profile OR CLI local profile
+        // Layer 2 (top): Auth tokens where needed
 
-        // Layer 1: Resolve authentication token if provided
-        const authEnv: Record<string, string> = {};
-        if (options.token) {
-          if (options.agent === 'codex') {
-
-            // Create a temporary directory for Codex
-            const codexHomeDir = tmp.dirSync();
-
-            // Write the token to the temporary directory
-            fs.writeFile(join(codexHomeDir.name, 'auth.json'), options.token);
-
-            // Set the environment variable for Codex
-            authEnv.CODEX_HOME = codexHomeDir.name;
-          } else { // Assuming claude
-            authEnv.CLAUDE_CODE_OAUTH_TOKEN = options.token;
-          }
-        }
-
-        // Layer 2: Profile environment variables
+        // Layer 1: Profile environment variables
         // Priority: GUI-provided profile > CLI local active profile > none
         let profileEnv: Record<string, string> = {};
 
@@ -323,7 +307,37 @@ export async function startDaemon(): Promise<void> {
           }
         }
 
-        // Final merge: Profile vars first, then auth (auth takes precedence to protect authentication)
+        // Layer 2: Resolve authentication token if provided
+        const authEnv: Record<string, string> = {};
+        if (options.token) {
+          if (options.agent === 'codex') {
+            const explicitCodexHome = profileEnv.CODEX_HOME || process.env.CODEX_HOME;
+            const defaultCodexHome = join(os.homedir(), '.codex');
+            let preserveExistingCodexHome = Boolean(explicitCodexHome);
+
+            if (preserveExistingCodexHome) {
+              logger.debug(`[DAEMON RUN] Preserving existing CODEX_HOME for Codex session`);
+            } else {
+              try {
+                await fs.access(defaultCodexHome);
+                preserveExistingCodexHome = true;
+                logger.debug(`[DAEMON RUN] Preserving default Codex home at ${defaultCodexHome}`);
+              } catch {
+                preserveExistingCodexHome = false;
+              }
+            }
+
+            if (!preserveExistingCodexHome) {
+              const codexHomeDir = tmp.dirSync();
+              await fs.writeFile(join(codexHomeDir.name, 'auth.json'), options.token);
+              authEnv.CODEX_HOME = codexHomeDir.name;
+            }
+          } else {
+            authEnv.CLAUDE_CODE_OAUTH_TOKEN = options.token;
+          }
+        }
+
+        // Final merge: Profile vars first, then auth
         let extraEnv = { ...profileEnv, ...authEnv };
         logger.debug(`[DAEMON RUN] Final environment variable keys (before expansion) (${Object.keys(extraEnv).length}): ${Object.keys(extraEnv).join(', ')}`);
 

@@ -40,6 +40,7 @@ import { fetchFeed } from './apiFeed';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
+import { recoverFromMissingSessionEncryption } from './newMessageRecovery';
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -441,16 +442,29 @@ class Sync {
     async sendMessage(sessionId: string, text: string, displayText?: string) {
 
         // Get encryption
-        const encryption = this.encryption.getSessionEncryption(sessionId);
-        if (!encryption) { // Should never happen
-            console.error(`Session ${sessionId} not found`);
-            return;
-        }
+        let encryption = this.encryption.getSessionEncryption(sessionId);
+        let session = storage.getState().sessions[sessionId];
 
-        // Get session data from storage
-        const session = storage.getState().sessions[sessionId];
-        if (!session) {
-            console.error(`Session ${sessionId} not found in storage`);
+        // Session/encryption can lag right after spawn; force a quick sync retry before giving up
+        if (!encryption || !session) {
+            this.sessionsSync.invalidate();
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            encryption = this.encryption.getSessionEncryption(sessionId);
+            session = storage.getState().sessions[sessionId];
+        }
+        if (!encryption || !session) {
+            console.error(`Session ${sessionId} not ready for sending (session/encryption missing)`);
+            this.enqueueMessages(sessionId, [{
+                id: randomUUID(),
+                localId: null,
+                createdAt: Date.now(),
+                role: 'event',
+                isSidechain: false,
+                content: {
+                    type: 'message',
+                    message: 'Message not sent: session is not ready. Please retry.'
+                }
+            }]);
             return;
         }
 
@@ -1555,6 +1569,29 @@ class Sync {
                 signal: controller.signal
             });
             if (!response.ok) {
+                // Fatal errors should not be retried forever in background.
+                // Clear pending batch and surface a visible message to the user.
+                if (response.status === 401 || response.status === 403 || response.status === 404) {
+                    pending.splice(0, batch.length);
+                    this.pendingOutbox.delete(sessionId);
+                    if (response.status === 404) {
+                        this.sessionsSync.invalidate();
+                    }
+                    this.enqueueMessages(sessionId, [{
+                        id: randomUUID(),
+                        localId: null,
+                        createdAt: Date.now(),
+                        role: 'event',
+                        isSidechain: false,
+                        content: {
+                            type: 'message',
+                            message: response.status === 404
+                                ? 'Message not sent: session not found. Refresh sessions and retry.'
+                                : 'Message not sent: authorization failed. Please re-login and retry.'
+                        }
+                    }]);
+                    return;
+                }
                 throw new Error(`Failed to send messages for ${sessionId}: ${response.status}`);
             }
 
@@ -1735,8 +1772,15 @@ class Sync {
             // Get encryption
             const encryption = this.encryption.getSessionEncryption(updateData.body.sid);
             if (!encryption) { // Should never happen
-                console.error(`Session ${updateData.body.sid} not found`);
-                this.fetchSessions(); // Just fetch sessions again
+                const sessionId = updateData.body.sid;
+                console.error(`Session ${sessionId} not found`);
+                void recoverFromMissingSessionEncryption(
+                    sessionId,
+                    this.sessionsSync,
+                    async (id) => {
+                        await this.getMessagesSync(id).invalidateAndAwait();
+                    }
+                );
                 return;
             }
 
