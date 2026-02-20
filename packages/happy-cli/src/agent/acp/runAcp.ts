@@ -435,9 +435,12 @@ type PendingTurn = {
   timeout: NodeJS.Timeout;
 };
 
-function resolveSessionFlavor(agentName: string): 'gemini' | 'opencode' | 'acp' {
+function resolveSessionFlavor(agentName: string): 'gemini' | 'copilot' | 'opencode' | 'acp' {
   if (agentName === 'gemini') {
     return 'gemini';
+  }
+  if (agentName === 'copilot') {
+    return 'copilot';
   }
   if (agentName === 'opencode') {
     return 'opencode';

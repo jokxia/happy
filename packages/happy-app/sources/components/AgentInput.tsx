@@ -52,6 +52,7 @@ interface AgentInputProps {
             claude: boolean | null;
             codex: boolean | null;
             gemini?: boolean | null;
+            copilot?: boolean | null;
         };
     };
     autocompletePrefixes: string[];
@@ -65,7 +66,7 @@ interface AgentInputProps {
     };
     alwaysShowContextSize?: boolean;
     onFileViewerPress?: () => void;
-    agentType?: 'claude' | 'codex' | 'gemini';
+    agentType?: 'claude' | 'codex' | 'gemini' | 'copilot';
     onAgentClick?: () => void;
     machineName?: string | null;
     onMachineClick?: () => void;
@@ -306,6 +307,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
     const isCodex = props.metadata?.flavor === 'codex' || props.agentType === 'codex';
     const isGemini = props.metadata?.flavor === 'gemini' || props.agentType === 'gemini';
+    const isCopilot = props.metadata?.flavor === 'copilot' || props.agentType === 'copilot';
     const displayPermissionMode = React.useMemo(() => (
         props.permissionMode ? hackMode(props.permissionMode) : null
     ), [props.permissionMode]);
@@ -563,7 +565,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 {/* Permission Mode Section */}
                                 <View style={styles.overlaySection}>
                                     <Text style={styles.overlaySectionTitle}>
-                                        {isCodex ? t('agentInput.codexPermissionMode.title') : isGemini ? t('agentInput.geminiPermissionMode.title') : t('agentInput.permissionMode.title')}
+                                        {(isCodex || isCopilot) ? t('agentInput.codexPermissionMode.title') : isGemini ? t('agentInput.geminiPermissionMode.title') : t('agentInput.permissionMode.title')}
                                     </Text>
                                     {availableModes.map((mode) => {
                                         const isSelected = permissionModeKey === mode.key;
@@ -806,6 +808,28 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                         ...Typography.default()
                                                     }}>
                                                         gemini
+                                                    </Text>
+                                                </View>
+                                            )}
+                                            {props.connectionStatus.cliStatus.copilot !== undefined && (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                    <Text style={{
+                                                        fontSize: 11,
+                                                        color: props.connectionStatus.cliStatus.copilot
+                                                            ? theme.colors.success
+                                                            : theme.colors.textDestructive,
+                                                        ...Typography.default()
+                                                    }}>
+                                                        {props.connectionStatus.cliStatus.copilot ? '✓' : '✗'}
+                                                    </Text>
+                                                    <Text style={{
+                                                        fontSize: 11,
+                                                        color: props.connectionStatus.cliStatus.copilot
+                                                            ? theme.colors.success
+                                                            : theme.colors.textDestructive,
+                                                        ...Typography.default()
+                                                    }}>
+                                                        copilot
                                                     </Text>
                                                 </View>
                                             )}
@@ -1054,7 +1078,13 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                             fontWeight: '600',
                                             ...Typography.default('semiBold'),
                                         }}>
-                                            {props.agentType === 'claude' ? t('agentInput.agent.claude') : props.agentType === 'codex' ? t('agentInput.agent.codex') : t('agentInput.agent.gemini')}
+                                            {props.agentType === 'claude'
+                                                ? t('agentInput.agent.claude')
+                                                : props.agentType === 'codex'
+                                                    ? t('agentInput.agent.codex')
+                                                    : props.agentType === 'gemini'
+                                                        ? t('agentInput.agent.gemini')
+                                                        : 'Copilot'}
                                         </Text>
                                     </Pressable>
                                 )}

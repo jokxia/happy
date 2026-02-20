@@ -5,6 +5,7 @@ export type AcpAgentConfig = {
 
 export const KNOWN_ACP_AGENTS: Record<string, AcpAgentConfig> = {
   gemini: { command: 'gemini', args: ['--experimental-acp'] },
+  copilot: { command: 'copilot', args: ['--acp'] },
   opencode: { command: 'opencode', args: ['acp'] },
 };
 
@@ -37,7 +38,9 @@ export function resolveAcpAgentConfig(cliArgs: string[]): ResolvedAcpAgentConfig
     const passthroughArgs = cliArgs
       .slice(1)
       // Backward-compatible with old OpenCode docs/flags.
-      .filter((arg) => !(agentName === 'opencode' && arg === '--acp'));
+      .filter((arg) => !(agentName === 'opencode' && arg === '--acp'))
+      // Backward-compatible with older Copilot docs/flags.
+      .filter((arg) => !(agentName === 'copilot' && (arg === '--experimental-acp' || arg === '--acp')));
     return {
       agentName,
       command: known.command,

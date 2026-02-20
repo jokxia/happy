@@ -65,7 +65,7 @@ const useProfileMap = (profiles: AIBackendProfile[]) => {
 
 // Environment variable transformation helper
 // Returns ALL profile environment variables - daemon will use them as-is
-const transformProfileToEnvironmentVars = (profile: AIBackendProfile, agentType: 'claude' | 'codex' | 'gemini' = 'claude') => {
+const transformProfileToEnvironmentVars = (profile: AIBackendProfile, agentType: 'claude' | 'codex' | 'gemini' | 'copilot' = 'claude') => {
     // getProfileEnvironmentVariables already returns ALL env vars from profile
     // including custom environmentVariables array and provider-specific configs
     return getProfileEnvironmentVariables(profile);
@@ -102,6 +102,14 @@ const getRecentPathForMachine = (machineId: string | null, recentPaths: Array<{ 
 // Configuration constants
 const RECENT_PATHS_DEFAULT_VISIBLE = 5;
 const STATUS_ITEM_GAP = 11; // Spacing between status items (machine, CLI) - ~2 character spaces at 11px font
+const getCompatibilityMarker = (compatibility: AIBackendProfile['compatibility']): string => {
+    const markers: string[] = [];
+    if (compatibility.claude) markers.push('✳');
+    if (compatibility.codex) markers.push('꩜');
+    if (compatibility.gemini) markers.push('✦');
+    if (compatibility.copilot) markers.push('⌘');
+    return markers.join('') || '•';
+};
 
 const styles = StyleSheet.create((theme, rt) => ({
     container: {
@@ -316,7 +324,7 @@ function NewSessionWizard() {
         }
         return 'anthropic'; // Default to Anthropic
     });
-    const [agentType, setAgentType] = React.useState<'claude' | 'codex' | 'gemini'>(() => {
+    const [agentType, setAgentType] = React.useState<'claude' | 'codex' | 'gemini' | 'copilot'>(() => {
         // Check if agent type was provided in temp data
         if (tempSessionData?.agentType) {
             // Only allow gemini if experiments are enabled
@@ -325,7 +333,7 @@ function NewSessionWizard() {
             }
             return tempSessionData.agentType;
         }
-        if (lastUsedAgent === 'claude' || lastUsedAgent === 'codex') {
+        if (lastUsedAgent === 'claude' || lastUsedAgent === 'codex' || lastUsedAgent === 'copilot') {
             return lastUsedAgent;
         }
         // Only allow gemini if experiments are enabled
@@ -335,13 +343,14 @@ function NewSessionWizard() {
         return 'claude';
     });
 
-    // Agent cycling handler (for cycling through claude -> codex -> gemini)
+    // Agent cycling handler (for cycling through claude -> codex -> copilot -> gemini)
     // Note: Does NOT persist immediately - persistence is handled by useEffect below
     const handleAgentClick = React.useCallback(() => {
         setAgentType(prev => {
-            // Cycle: claude -> codex -> gemini (if experiments) -> claude
+            // Cycle: claude -> codex -> copilot -> gemini (if experiments) -> claude
             if (prev === 'claude') return 'codex';
-            if (prev === 'codex') return experimentsEnabled ? 'gemini' : 'claude';
+            if (prev === 'codex') return 'copilot';
+            if (prev === 'copilot') return experimentsEnabled ? 'gemini' : 'claude';
             return 'claude';
         });
     }, [experimentsEnabled]);
@@ -464,16 +473,17 @@ function NewSessionWizard() {
 
         if (agentAvailable === false) {
             // Current agent not available - find first available
-            const availableAgent: 'claude' | 'codex' | 'gemini' =
+            const availableAgent: 'claude' | 'codex' | 'gemini' | 'copilot' =
                 cliAvailability.claude === true ? 'claude' :
                 cliAvailability.codex === true ? 'codex' :
+                cliAvailability.copilot === true ? 'copilot' :
                 (cliAvailability.gemini === true && experimentsEnabled) ? 'gemini' :
                 'claude'; // Fallback to claude (will fail at spawn with clear error)
 
             console.warn(`[AgentSelection] ${agentType} not available, switching to ${availableAgent}`);
             setAgentType(availableAgent);
         }
-    }, [cliAvailability.timestamp, cliAvailability.claude, cliAvailability.codex, cliAvailability.gemini, agentType, experimentsEnabled]);
+    }, [cliAvailability.timestamp, cliAvailability.claude, cliAvailability.codex, cliAvailability.gemini, cliAvailability.copilot, agentType, experimentsEnabled]);
 
     // Extract all ${VAR} references from profiles to query daemon environment
     const envVarRefs = React.useMemo(() => {
@@ -489,10 +499,10 @@ function NewSessionWizard() {
     const { variables: daemonEnv } = useEnvironmentVariables(selectedMachineId, envVarRefs);
 
     // Temporary banner dismissal (X button) - resets when component unmounts or machine changes
-    const [hiddenBanners, setHiddenBanners] = React.useState<{ claude: boolean; codex: boolean; gemini: boolean }>({ claude: false, codex: false, gemini: false });
+    const [hiddenBanners, setHiddenBanners] = React.useState<{ claude: boolean; codex: boolean; gemini: boolean; copilot: boolean }>({ claude: false, codex: false, gemini: false, copilot: false });
 
     // Helper to check if CLI warning has been dismissed (checks both global and per-machine)
-    const isWarningDismissed = React.useCallback((cli: 'claude' | 'codex' | 'gemini'): boolean => {
+    const isWarningDismissed = React.useCallback((cli: 'claude' | 'codex' | 'gemini' | 'copilot'): boolean => {
         // Check global dismissal first
         if (dismissedCLIWarnings.global?.[cli] === true) return true;
         // Check per-machine dismissal
@@ -501,7 +511,7 @@ function NewSessionWizard() {
     }, [selectedMachineId, dismissedCLIWarnings]);
 
     // Unified dismiss handler for all three button types (easy to use correctly, hard to use incorrectly)
-    const handleCLIBannerDismiss = React.useCallback((cli: 'claude' | 'codex' | 'gemini', type: 'temporary' | 'machine' | 'global') => {
+    const handleCLIBannerDismiss = React.useCallback((cli: 'claude' | 'codex' | 'gemini' | 'copilot', type: 'temporary' | 'machine' | 'global') => {
         if (type === 'temporary') {
             // X button: Hide for current session only (not persisted)
             setHiddenBanners(prev => ({ ...prev, [cli]: true }));
@@ -553,7 +563,7 @@ function NewSessionWizard() {
         const supportedCLIs = (Object.entries(profile.compatibility) as [string, boolean][])
             .filter(([, supported]) => supported)
             .map(([agent]) => agent);
-        const requiredCLI = supportedCLIs.length === 1 ? supportedCLIs[0] as 'claude' | 'codex' | 'gemini' : null;
+        const requiredCLI = supportedCLIs.length === 1 ? supportedCLIs[0] as 'claude' | 'codex' | 'gemini' | 'copilot' : null;
 
         if (requiredCLI && cliAvailability[requiredCLI] === false) {
             return {
@@ -678,7 +688,7 @@ function NewSessionWizard() {
                 .map(([agent]) => agent);
 
             if (supportedCLIs.length === 1) {
-                const requiredAgent = supportedCLIs[0] as 'claude' | 'codex' | 'gemini';
+                const requiredAgent = supportedCLIs[0] as 'claude' | 'codex' | 'gemini' | 'copilot';
                 // Check if this agent is available and allowed
                 const isAvailable = cliAvailability[requiredAgent] !== false;
                 const isAllowed = requiredAgent !== 'gemini' || experimentsEnabled;
@@ -705,7 +715,7 @@ function NewSessionWizard() {
                 }
             }
         }
-    }, [profileMap, cliAvailability.claude, cliAvailability.codex, cliAvailability.gemini, experimentsEnabled, availableModes, agentType]);
+    }, [profileMap, cliAvailability.claude, cliAvailability.codex, cliAvailability.gemini, cliAvailability.copilot, experimentsEnabled, availableModes, agentType]);
 
     // Ensure permission mode is valid for current agent, falling back when needed.
     React.useEffect(() => {
@@ -777,7 +787,7 @@ function NewSessionWizard() {
             name: '',
             anthropicConfig: {},
             environmentVariables: [],
-            compatibility: { claude: true, codex: true, gemini: true },
+            compatibility: { claude: true, codex: true, gemini: true, copilot: true },
             isBuiltIn: false,
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -817,12 +827,13 @@ function NewSessionWizard() {
         }
 
         // Add CLI type second (before warnings/availability)
-        if (profile.compatibility.claude && profile.compatibility.codex) {
-            parts.push('Claude & Codex CLI');
-        } else if (profile.compatibility.claude) {
-            parts.push('Claude CLI');
-        } else if (profile.compatibility.codex) {
-            parts.push('Codex CLI');
+        const cliLabels: string[] = [];
+        if (profile.compatibility.claude) cliLabels.push('Claude');
+        if (profile.compatibility.codex) cliLabels.push('Codex');
+        if (profile.compatibility.gemini) cliLabels.push('Gemini');
+        if (profile.compatibility.copilot) cliLabels.push('Copilot');
+        if (cliLabels.length > 0) {
+            parts.push(`${cliLabels.join(' & ')} CLI`);
         }
 
         // Add availability warning if unavailable
@@ -832,7 +843,13 @@ function NewSessionWizard() {
                 parts.push(`⚠️ This profile uses ${required} CLI only`);
             } else if (availability.reason.startsWith('cli-not-detected:')) {
                 const cli = availability.reason.split(':')[1];
-                const cliName = cli === 'claude' ? 'Claude' : 'Codex';
+                const cliNameMap: Record<string, string> = {
+                    claude: 'Claude',
+                    codex: 'Codex',
+                    gemini: 'Gemini',
+                    copilot: 'Copilot',
+                };
+                const cliName = cliNameMap[cli] || cli;
                 parts.push(`⚠️ ${cliName} CLI not detected (this profile needs it)`);
             }
         }
@@ -1097,6 +1114,7 @@ function NewSessionWizard() {
             cliStatus: includeCLI ? {
                 claude: cliAvailability.claude,
                 codex: cliAvailability.codex,
+                copilot: cliAvailability.copilot,
                 ...(experimentsEnabled && { gemini: cliAvailability.gemini }),
             } : undefined,
         };
@@ -1251,6 +1269,14 @@ function NewSessionWizard() {
                                                 codex
                                             </Text>
                                         </View>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                            <Text style={{ fontSize: 11, color: cliAvailability.copilot ? theme.colors.success : theme.colors.textDestructive, ...Typography.default() }}>
+                                                {cliAvailability.copilot ? '✓' : '✗'}
+                                            </Text>
+                                            <Text style={{ fontSize: 11, color: cliAvailability.copilot ? theme.colors.success : theme.colors.textDestructive, ...Typography.default() }}>
+                                                copilot
+                                            </Text>
+                                        </View>
                                         {experimentsEnabled && (
                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                                 <Text style={{ fontSize: 11, color: cliAvailability.gemini ? theme.colors.success : theme.colors.textDestructive, ...Typography.default() }}>
@@ -1272,7 +1298,7 @@ function NewSessionWizard() {
                                 <Text style={[styles.sectionHeader, { marginBottom: 0, marginTop: 0 }]}>Choose AI Profile</Text>
                             </View>
                             <Text style={styles.sectionDescription}>
-                                Choose which AI backend runs your session (Claude or Codex). Create custom profiles for alternative APIs.
+                                Choose which AI backend runs your session (Claude, Codex, or Copilot). Create custom profiles for alternative APIs.
                             </Text>
 
                             {/* Missing CLI Installation Banners */}
@@ -1420,6 +1446,78 @@ function NewSessionWizard() {
                                 </View>
                             )}
 
+                            {selectedMachineId && cliAvailability.copilot === false && !isWarningDismissed('copilot') && !hiddenBanners.copilot && (
+                                <View style={{
+                                    backgroundColor: theme.colors.box.warning.background,
+                                    borderRadius: 10,
+                                    padding: 12,
+                                    marginBottom: 12,
+                                    borderWidth: 1,
+                                    borderColor: theme.colors.box.warning.border,
+                                }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+                                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginRight: 16 }}>
+                                            <Ionicons name="warning" size={16} color={theme.colors.warning} />
+                                            <Text style={{ fontSize: 13, fontWeight: '600', color: theme.colors.text, ...Typography.default('semiBold') }}>
+                                                Copilot CLI Not Detected
+                                            </Text>
+                                            <View style={{ flex: 1, minWidth: 20 }} />
+                                            <Text style={{ fontSize: 10, color: theme.colors.textSecondary, ...Typography.default() }}>
+                                                Don't show this popup for
+                                            </Text>
+                                            <Pressable
+                                                onPress={() => handleCLIBannerDismiss('copilot', 'machine')}
+                                                style={{
+                                                    borderRadius: 4,
+                                                    borderWidth: 1,
+                                                    borderColor: theme.colors.textSecondary,
+                                                    paddingHorizontal: 8,
+                                                    paddingVertical: 3,
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: 10, color: theme.colors.textSecondary, ...Typography.default() }}>
+                                                    this machine
+                                                </Text>
+                                            </Pressable>
+                                            <Pressable
+                                                onPress={() => handleCLIBannerDismiss('copilot', 'global')}
+                                                style={{
+                                                    borderRadius: 4,
+                                                    borderWidth: 1,
+                                                    borderColor: theme.colors.textSecondary,
+                                                    paddingHorizontal: 8,
+                                                    paddingVertical: 3,
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: 10, color: theme.colors.textSecondary, ...Typography.default() }}>
+                                                    any machine
+                                                </Text>
+                                            </Pressable>
+                                        </View>
+                                        <Pressable
+                                            onPress={() => handleCLIBannerDismiss('copilot', 'temporary')}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        >
+                                            <Ionicons name="close" size={18} color={theme.colors.textSecondary} />
+                                        </Pressable>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                                        <Text style={{ fontSize: 11, color: theme.colors.textSecondary, ...Typography.default() }}>
+                                            Install Copilot CLI on this machine •
+                                        </Text>
+                                        <Pressable onPress={() => {
+                                            if (Platform.OS === 'web') {
+                                                window.open('https://github.com/features/copilot', '_blank');
+                                            }
+                                        }}>
+                                            <Text style={{ fontSize: 11, color: theme.colors.textLink, ...Typography.default() }}>
+                                                View Copilot Docs →
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                </View>
+                            )}
+
                             {selectedMachineId && cliAvailability.gemini === false && experimentsEnabled && !isWarningDismissed('gemini') && !hiddenBanners.gemini && (
                                 <View style={{
                                     backgroundColor: theme.colors.box.warning.background,
@@ -1509,8 +1607,7 @@ function NewSessionWizard() {
                                     >
                                         <View style={[styles.profileIcon, { backgroundColor: theme.colors.button.secondary.tint }]}>
                                             <Text style={{ fontSize: 16, color: theme.colors.button.primary.tint, ...Typography.default() }}>
-                                                {profile.compatibility.claude && profile.compatibility.codex ? '✳꩜' :
-                                                 profile.compatibility.claude ? '✳' : '꩜'}
+                                                {getCompatibilityMarker(profile.compatibility)}
                                             </Text>
                                         </View>
                                         <View style={{ flex: 1 }}>
@@ -1575,8 +1672,7 @@ function NewSessionWizard() {
                                     >
                                         <View style={styles.profileIcon}>
                                             <Text style={{ fontSize: 16, color: theme.colors.button.primary.tint, ...Typography.default() }}>
-                                                {profile.compatibility.claude && profile.compatibility.codex ? '✳꩜' :
-                                                 profile.compatibility.claude ? '✳' : '꩜'}
+                                                {getCompatibilityMarker(profile.compatibility)}
                                             </Text>
                                         </View>
                                         <View style={{ flex: 1 }}>

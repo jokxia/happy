@@ -89,6 +89,7 @@ export const SettingsView = React.memo(function SettingsView() {
     // Connection status
     const isGitHubConnected = !!profile.github;
     const isAnthropicConnected = profile.connectedServices?.includes('anthropic') || false;
+    const isCopilotConnected = profile.connectedServices?.includes('copilot') || false;
 
     // GitHub connection
     const [connectingGitHub, connectGitHub] = useHappyAction(async () => {
@@ -124,6 +125,25 @@ export const SettingsView = React.memo(function SettingsView() {
             await disconnectService(auth.credentials!, 'anthropic');
             await sync.refreshProfile();
         }
+    });
+
+    const [disconnectingCopilot, handleDisconnectCopilot] = useHappyAction(async () => {
+        const confirmed = await Modal.confirm(
+            t('modals.disconnectService', { service: 'Copilot' }),
+            t('modals.disconnectServiceConfirm', { service: 'Copilot' }),
+            { confirmText: t('modals.disconnect'), destructive: true }
+        );
+        if (confirmed) {
+            await disconnectService(auth.credentials!, 'copilot');
+            await sync.refreshProfile();
+        }
+    });
+
+    const [connectingCopilot, handleConnectCopilot] = useHappyAction(async () => {
+        await Modal.alert(
+            'Connect Copilot',
+            'Run "happy connect copilot" in your terminal to connect GitHub Copilot.'
+        );
     });
 
 
@@ -224,6 +244,23 @@ export const SettingsView = React.memo(function SettingsView() {
                     }
                     onPress={isAnthropicConnected ? handleDisconnectAnthropic : connectAnthropic}
                     loading={connectingAnthropic || disconnectingAnthropic}
+                    showChevron={false}
+                />
+                <Item
+                    title="GitHub Copilot"
+                    subtitle={isCopilotConnected
+                        ? t('settingsAccount.statusActive')
+                        : t('settings.connectAccount')
+                    }
+                    icon={
+                        <Ionicons
+                            name="logo-github"
+                            size={29}
+                            color={isCopilotConnected ? theme.colors.status.connected : theme.colors.textSecondary}
+                        />
+                    }
+                    onPress={isCopilotConnected ? handleDisconnectCopilot : handleConnectCopilot}
+                    loading={connectingCopilot || disconnectingCopilot}
                     showChevron={false}
                 />
                 <Item

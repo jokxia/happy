@@ -9,6 +9,7 @@ import { useCheckScannerPermissions } from '@/hooks/useCheckCameraPermissions';
 import { Modal } from '@/modal';
 import { t } from '@/text';
 import { sync } from '@/sync/sync';
+import { extractTerminalAuthPublicKey } from '@/utils/terminalAuthUrl';
 
 interface UseConnectTerminalOptions {
     onSuccess?: () => void;
@@ -21,15 +22,15 @@ export function useConnectTerminal(options?: UseConnectTerminalOptions) {
     const checkScannerPermissions = useCheckScannerPermissions();
 
     const processAuthUrl = React.useCallback(async (url: string) => {
-        if (!url.startsWith('happy://terminal?')) {
+        const extractedPublicKey = extractTerminalAuthPublicKey(url);
+        if (!extractedPublicKey) {
             Modal.alert(t('common.error'), t('modals.invalidAuthUrl'), [{ text: t('common.ok') }]);
             return false;
         }
         
         setIsLoading(true);
         try {
-            const tail = url.slice('happy://terminal?'.length);
-            const publicKey = decodeBase64(tail, 'base64url');
+            const publicKey = decodeBase64(extractedPublicKey, 'base64url');
             const responseV1 = encryptBox(decodeBase64(auth.credentials!.secret, 'base64url'), publicKey);
             let responseV2Bundle = new Uint8Array(sync.encryption.contentDataKey.length + 1);
             responseV2Bundle[0] = 0;
@@ -73,7 +74,7 @@ export function useConnectTerminal(options?: UseConnectTerminalOptions) {
     React.useEffect(() => {
         if (CameraView.isModernBarcodeScannerAvailable) {
             const subscription = CameraView.onModernBarcodeScanned(async (event) => {
-                if (event.data.startsWith('happy://terminal?')) {
+                if (extractTerminalAuthPublicKey(event.data)) {
                     // Dismiss scanner on Android is called automatically when barcode is scanned
                     if (Platform.OS === 'ios') {
                         await CameraView.dismissScanner();

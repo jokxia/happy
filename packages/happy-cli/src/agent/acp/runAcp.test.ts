@@ -267,6 +267,58 @@ describe('runAcp', () => {
     ]));
   });
 
+  it('covers copilot flow from app message to daemon session notify and reply envelopes', async () => {
+    const runPromise = runAcp({
+      credentials: { token: 'token', encryption: { type: 'legacy', secret: new Uint8Array(32) } },
+      agentName: 'copilot',
+      command: 'copilot',
+      args: ['--acp'],
+      startedBy: 'daemon',
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.getUserMessageHandler()).toBeTypeOf('function');
+    });
+
+    mocks.getUserMessageHandler()!({
+      role: 'user',
+      content: { type: 'text', text: 'Please build an API test script' },
+    });
+
+    await vi.waitFor(() => {
+      expect(mocks.backendState.prompts).toHaveLength(1);
+    });
+
+    await mocks.getKillHandler()!();
+    await runPromise;
+
+    expect(mocks.mockGetOrCreateSession).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        flavor: 'copilot',
+        startedBy: 'daemon',
+        startedFromDaemon: true,
+      }),
+    }));
+    expect(mocks.mockNotifyDaemonSessionStarted).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({
+        flavor: 'copilot',
+        startedBy: 'daemon',
+        startedFromDaemon: true,
+      }),
+    );
+    expect(mocks.backendState.constructorArgs.command).toBe('copilot');
+    expect(mocks.backendState.constructorArgs.args).toEqual(['--acp']);
+    expect(mocks.backendState.prompts[0]).toEqual({
+      sessionId: 'acp-session-1',
+      prompt: 'Please build an API test script',
+    });
+
+    const envelopeTypes = mocks.mockSession.sendSessionProtocolMessage.mock.calls.map(([envelope]) => envelope.ev.t);
+    expect(envelopeTypes).toEqual(['turn-start', 'text', 'tool-call-start', 'tool-call-end', 'turn-end']);
+    expect(mocks.mockSession.sendSessionEvent).toHaveBeenCalledWith({ type: 'ready' });
+  });
+
   it('registers abort handler that cancels the ACP backend session', async () => {
     const runPromise = runAcp({
       credentials: { token: 'token', encryption: { type: 'legacy', secret: new Uint8Array(32) } },

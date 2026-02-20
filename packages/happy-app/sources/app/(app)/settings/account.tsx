@@ -176,7 +176,8 @@ export default React.memo(() => {
                     const knownServices = {
                         anthropic: { name: 'Claude Code', icon: require('@/assets/images/icon-claude.png'), tintColor: null },
                         gemini: { name: 'Google Gemini', icon: require('@/assets/images/icon-gemini.png'), tintColor: null },
-                        openai: { name: 'OpenAI Codex', icon: require('@/assets/images/icon-gpt.png'), tintColor: theme.colors.text }
+                        openai: { name: 'OpenAI Codex', icon: require('@/assets/images/icon-gpt.png'), tintColor: theme.colors.text },
+                        copilot: { name: 'GitHub Copilot', icon: require('@/assets/images/icon-gpt.png'), tintColor: theme.colors.text }
                     };
                     
                     // Filter to only known services
