@@ -302,6 +302,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const screenWidth = useWindowDimensions().width;
 
     const hasText = props.value.trim().length > 0;
+    const isSendButtonDisabled = Boolean(
+        props.isSendDisabled || props.isSending || (!hasText && !props.onMicPress)
+    );
+    const isSendButtonActive = Boolean(
+        props.isSending || (!isSendButtonDisabled && (hasText || (props.onMicPress && !props.isMicActive)))
+    );
 
     // Check if this is a Codex or Gemini session
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
@@ -1131,7 +1137,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 <View
                                     style={[
                                         styles.sendButton,
-                                        (hasText || props.isSending || (props.onMicPress && !props.isMicActive))
+                                        isSendButtonActive
                                             ? styles.sendButtonActive
                                             : styles.sendButtonInactive
                                     ]}
@@ -1153,7 +1159,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                 props.onMicPress?.();
                                             }
                                         }}
-                                        disabled={props.isSendDisabled || props.isSending || (!hasText && !props.onMicPress)}
+                                        disabled={isSendButtonDisabled}
                                     >
                                         {props.isSending ? (
                                             <ActivityIndicator
