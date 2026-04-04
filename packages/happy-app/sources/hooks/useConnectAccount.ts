@@ -8,6 +8,7 @@ import { authAccountApprove } from '@/auth/authAccountApprove';
 import { useCheckScannerPermissions } from '@/hooks/useCheckCameraPermissions';
 import { Modal } from '@/modal';
 import { t } from '@/text';
+import { extractAccountAuthPublicKey } from '@/utils/accountAuthUrl';
 
 interface UseConnectAccountOptions {
     onSuccess?: () => void;
@@ -20,15 +21,15 @@ export function useConnectAccount(options?: UseConnectAccountOptions) {
     const checkScannerPermissions = useCheckScannerPermissions();
 
     const processAuthUrl = React.useCallback(async (url: string) => {
-        if (!url.startsWith('happy:///account?')) {
+        const extractedPublicKey = extractAccountAuthPublicKey(url);
+        if (!extractedPublicKey) {
             Modal.alert(t('common.error'), t('modals.invalidAuthUrl'), [{ text: t('common.ok') }]);
             return false;
         }
         
         setIsLoading(true);
         try {
-            const tail = url.slice('happy:///account?'.length);
-            const publicKey = decodeBase64(tail, 'base64url');
+            const publicKey = decodeBase64(extractedPublicKey, 'base64url');
             const response = encryptBox(decodeBase64(auth.credentials!.secret, 'base64url'), publicKey);
             await authAccountApprove(auth.credentials!.token, publicKey, response);
             
@@ -68,13 +69,17 @@ export function useConnectAccount(options?: UseConnectAccountOptions) {
     React.useEffect(() => {
         if (CameraView.isModernBarcodeScannerAvailable) {
             const subscription = CameraView.onModernBarcodeScanned(async (event) => {
-                if (event.data.startsWith('happy:///account?')) {
-                    // Dismiss scanner on Android is called automatically when barcode is scanned
-                    if (Platform.OS === 'ios') {
-                        await CameraView.dismissScanner();
-                    }
-                    await processAuthUrl(event.data);
+                if (process.env.EXPO_PUBLIC_DEBUG) {
+                    console.log(`[AUTH DEBUG] Account QR scanned: ${event.data}`);
                 }
+                if (!extractAccountAuthPublicKey(event.data)) {
+                    return;
+                }
+                // Dismiss scanner on Android is called automatically when barcode is scanned
+                if (Platform.OS === 'ios') {
+                    await CameraView.dismissScanner();
+                }
+                await processAuthUrl(event.data);
             });
             return () => {
                 subscription.remove();

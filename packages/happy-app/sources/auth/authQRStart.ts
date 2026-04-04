@@ -1,8 +1,8 @@
 import { getRandomBytes } from 'expo-crypto';
 import sodium from '@/encryption/libsodium.lib';
-import axios from 'axios';
 import { encodeBase64 } from '../encryption/base64';
 import { getServerUrl } from '@/sync/serverConfig';
+import { postAuthJson } from './authHttp';
 
 export interface QRAuthKeyPair {
     publicKey: Uint8Array;
@@ -26,7 +26,7 @@ export async function authQRStart(keypair: QRAuthKeyPair): Promise<boolean> {
             console.log(`[AUTH DEBUG] Public key: ${encodeBase64(keypair.publicKey).substring(0, 20)}...`);
         }
 
-        await axios.post(`${serverUrl}/v1/auth/account/request`, {
+        await postAuthJson(`${serverUrl}/v1/auth/account/request`, {
             publicKey: encodeBase64(keypair.publicKey),
         });
 

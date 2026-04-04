@@ -99,6 +99,23 @@ const getRecentPathForMachine = (machineId: string | null, recentPaths: Array<{ 
     return pathsWithTimestamps[0]?.path || defaultPath;
 };
 
+const getPreferredMachineId = (
+    machines: Array<{ id: string }>,
+    recentPaths: Array<{ machineId: string; path: string }>
+): string | null => {
+    if (machines.length === 0) return null;
+
+    if (recentPaths.length > 0) {
+        for (const recent of recentPaths) {
+            if (machines.some(m => m.id === recent.machineId)) {
+                return recent.machineId;
+            }
+        }
+    }
+
+    return machines[0].id;
+};
+
 // Configuration constants
 const RECENT_PATHS_DEFAULT_VISIBLE = 5;
 const STATUS_ITEM_GAP = 11; // Spacing between status items (machine, CLI) - ~2 character spaces at 11px font
@@ -387,17 +404,7 @@ function NewSessionWizard() {
 
     // Session details state
     const [selectedMachineId, setSelectedMachineId] = React.useState<string | null>(() => {
-        if (machines.length > 0) {
-            if (recentMachinePaths.length > 0) {
-                for (const recent of recentMachinePaths) {
-                    if (machines.find(m => m.id === recent.machineId)) {
-                        return recent.machineId;
-                    }
-                }
-            }
-            return machines[0].id;
-        }
-        return null;
+        return getPreferredMachineId(machines, recentMachinePaths);
     });
 
     const handlePermissionModeChange = React.useCallback((mode: PermissionMode) => {
@@ -438,6 +445,24 @@ function NewSessionWizard() {
             setSelectedPath(bestPath);
         }
     }, [machineIdParam, machines, recentMachinePaths, selectedMachineId]);
+
+    React.useEffect(() => {
+        const preferredMachineId = getPreferredMachineId(machines, recentMachinePaths);
+
+        if (!preferredMachineId) {
+            if (selectedMachineId !== null) {
+                setSelectedMachineId(null);
+            }
+            return;
+        }
+
+        if (selectedMachineId && machines.some(m => m.id === selectedMachineId)) {
+            return;
+        }
+
+        setSelectedMachineId(preferredMachineId);
+        setSelectedPath(getRecentPathForMachine(preferredMachineId, recentMachinePaths));
+    }, [machines, recentMachinePaths, selectedMachineId]);
 
     // Handle path route param from picker screens (main's navigation pattern)
     React.useEffect(() => {
@@ -999,7 +1024,11 @@ function NewSessionWizard() {
     // Session creation
     const handleCreateSession = React.useCallback(async () => {
         if (!selectedMachineId) {
-            Modal.alert(t('common.error'), t('newSession.noMachineSelected'));
+            const hasAnyMachines = machines.length > 0;
+            const errorMessage = !hasAnyMachines
+                ? t('newSession.noMachinesFound')
+                : t('newSession.noMachineSelected');
+            Modal.alert(t('common.error'), errorMessage);
             return;
         }
         if (!selectedPath) {
@@ -1094,7 +1123,7 @@ function NewSessionWizard() {
             Modal.alert(t('common.error'), errorMessage);
             setIsCreating(false);
         }
-    }, [selectedMachineId, selectedPath, sessionPrompt, sessionType, experimentsEnabled, agentType, selectedProfileId, permissionMode, modelMode, recentMachinePaths, profileMap, router]);
+    }, [selectedMachineId, selectedPath, sessionPrompt, sessionType, experimentsEnabled, agentType, selectedProfileId, permissionMode, modelMode, recentMachinePaths, profileMap, router, machines]);
 
     const screenWidth = useWindowDimensions().width;
 
