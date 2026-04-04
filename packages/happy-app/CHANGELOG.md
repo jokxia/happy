@@ -1,5 +1,29 @@
 # Changelog
 
+## Version 7 - 2026-04-03
+
+Added support for the latest Gemini models in the model picker, so you can take advantage of Google's newest and most powerful AI capabilities.
+
+- Added Gemini 3.1 Pro, Gemini 3 Flash, and Gemini 3.1 Flash Lite to the model picker
+- Gemini 3.x models now appear at the top of the list for quick access
+- Gemini 2.5 models remain available for stability
+
+## Version 6 - 2026-03-19
+
+This is the biggest update since launch — a redesigned session creation experience, Git worktree management, expanded agent support.
+
+- New session composer screen with machine selection, worktree picker, draft persistence, and offline machine visibility.
+- Git worktree management — list, create, and select worktrees from the app. Worktrees auto-cleanup on session delete.
+- Automatic plan mode switching when your agent enters planning mode.
+- OpenClaw added as a selectable AI agent alongside Claude Code and Codex.
+- Session quick actions for faster interaction with active sessions.
+- Session resume support — pick up where you left off.
+- Delete sessions directly from the session info screen.
+- Renamed "bypass" permission mode to "yolo" with updated styling.
+- Improved markdown rendering and message formatting.
+- Improved message sync reliability with edge case fixes.
+- Various UI polish: send spinner, hidden internal tool calls, improved spacing.
+
 ## Version 5 - 2025-12-22
 
 This release expands AI agent support and refines the voice experience, while improving markdown rendering for a better chat experience.

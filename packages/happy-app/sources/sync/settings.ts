@@ -246,6 +246,7 @@ export function isProfileVersionCompatible(profileVersion: string, requiredVersi
 }
 
 //
+
 // Settings Schema
 //
 
@@ -264,16 +265,18 @@ export const SettingsSchema = z.object({
     wrapLinesInDiffs: z.boolean().describe('Whether to wrap long lines in diff views'),
     analyticsOptOut: z.boolean().describe('Whether to opt out of anonymous analytics'),
     experiments: z.boolean().describe('Whether to enable experimental features'),
-    useEnhancedSessionWizard: z.boolean().describe('A/B test flag: Use enhanced profile-based session wizard UI'),
     alwaysShowContextSize: z.boolean().describe('Always show context size in agent input'),
     agentInputEnterToSend: z.boolean().describe('Whether pressing Enter submits/sends in the agent input (web)'),
     avatarStyle: z.string().describe('Avatar display style'),
     showFlavorIcons: z.boolean().describe('Whether to show AI provider icons in avatars'),
     compactSessionView: z.boolean().describe('Whether to use compact view for active sessions'),
     hideInactiveSessions: z.boolean().describe('Hide inactive sessions in the main list'),
+    expResumeSession: z.boolean().describe('Enable experimental session resume feature'),
     reviewPromptAnswered: z.boolean().describe('Whether the review prompt has been answered'),
     reviewPromptLikedApp: z.boolean().nullish().describe('Whether user liked the app when asked'),
     voiceAssistantLanguage: z.string().nullable().describe('Preferred language for voice assistant (null for auto-detect)'),
+    voiceCustomAgentId: z.string().nullable().describe('Custom ElevenLabs agent ID (null to use Happy default)'),
+    voiceBypassToken: z.boolean().describe('Bypass Happy server token and connect directly to ElevenLabs (requires custom agent ID)'),
     preferredLanguage: z.string().nullable().describe('Preferred UI language (null for auto-detect from device locale)'),
     recentMachinePaths: z.array(z.object({
         machineId: z.string(),
@@ -282,13 +285,6 @@ export const SettingsSchema = z.object({
     lastUsedAgent: z.string().nullable().describe('Last selected agent type for new sessions'),
     lastUsedPermissionMode: z.string().nullable().describe('Last selected permission mode for new sessions'),
     lastUsedModelMode: z.string().nullable().describe('Last selected model mode for new sessions'),
-    // Profile management settings
-    profiles: z.array(AIBackendProfileSchema).describe('User-defined profiles for AI backend and environment variables'),
-    lastUsedProfile: z.string().nullable().describe('Last selected profile for new sessions'),
-    // Favorite directories for quick path selection
-    favoriteDirectories: z.array(z.string()).describe('User-defined favorite directories for quick access in path selection'),
-    // Favorite machines for quick machine selection
-    favoriteMachines: z.array(z.string()).describe('User-defined favorite machines (machine IDs) for quick access in machine selection'),
     // Dismissed CLI warning banners (supports both per-machine and global dismissal)
     dismissedCLIWarnings: z.object({
         perMachine: z.record(z.string(), z.object({
@@ -296,12 +292,14 @@ export const SettingsSchema = z.object({
             codex: z.boolean().optional(),
             gemini: z.boolean().optional(),
             copilot: z.boolean().optional(),
+            openclaw: z.boolean().optional(),
         })).default({}),
         global: z.object({
             claude: z.boolean().optional(),
             codex: z.boolean().optional(),
             gemini: z.boolean().optional(),
             copilot: z.boolean().optional(),
+            openclaw: z.boolean().optional(),
         }).default({}),
     }).default({ perMachine: {}, global: {} }).describe('Tracks which CLI installation warnings user has dismissed (per-machine or globally)'),
 });
@@ -311,9 +309,9 @@ export const SettingsSchema = z.object({
 // you can name them with a prefix if you want to group them, but don't nest them.
 // You can nest if value is a single value (like image with url and width and height)
 // Settings are always merged with defaults and field by field.
-// 
+//
 // This structure must be forward and backward compatible. Meaning that some versions of the app
-// could be missing some fields or have a new fields. Everything must be preserved and client must 
+// could be missing some fields or have a new fields. Everything must be preserved and client must
 // only touch the fields it knows about.
 //
 
@@ -335,29 +333,23 @@ export const settingsDefaults: Settings = {
     wrapLinesInDiffs: false,
     analyticsOptOut: false,
     experiments: false,
-    useEnhancedSessionWizard: false,
     alwaysShowContextSize: false,
     agentInputEnterToSend: true,
     avatarStyle: 'brutalist',
     showFlavorIcons: false,
     compactSessionView: false,
     hideInactiveSessions: false,
+    expResumeSession: false,
     reviewPromptAnswered: false,
     reviewPromptLikedApp: null,
     voiceAssistantLanguage: null,
+    voiceCustomAgentId: null,
+    voiceBypassToken: false,
     preferredLanguage: null,
     recentMachinePaths: [],
     lastUsedAgent: null,
     lastUsedPermissionMode: null,
     lastUsedModelMode: null,
-    // Profile management defaults
-    profiles: [],
-    lastUsedProfile: null,
-    // Default favorite directories (real common directories on Unix-like systems)
-    favoriteDirectories: ['~/src', '~/Desktop', '~/Documents'],
-    // Favorite machines (empty by default)
-    favoriteMachines: [],
-    // Dismissed CLI warnings (empty by default)
     dismissedCLIWarnings: { perMachine: {}, global: {} },
 };
 Object.freeze(settingsDefaults);

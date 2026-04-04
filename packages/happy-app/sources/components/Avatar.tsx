@@ -22,7 +22,7 @@ const flavorIcons = {
     claude: require('@/assets/images/icon-claude.png'),
     codex: require('@/assets/images/icon-gpt.png'),
     gemini: require('@/assets/images/icon-gemini.png'),
-    copilot: require('@/assets/images/icon-gpt.png'),
+    openclaw: require('@/assets/images/icon-openclaw.png'),
 };
 
 const styles = StyleSheet.create((theme) => ({
@@ -70,7 +70,7 @@ export const Avatar = React.memo((props: AvatarProps) => {
             const effectiveFlavor = flavor || 'claude';
             const flavorIcon = flavorIcons[effectiveFlavor as keyof typeof flavorIcons] || flavorIcons.claude;
             const circleSize = Math.round(size * 0.35);
-            const iconSize = effectiveFlavor === 'codex' || effectiveFlavor === 'copilot'
+            const iconSize = effectiveFlavor === 'codex'
                 ? Math.round(size * 0.25)
                 : effectiveFlavor === 'claude'
                     ? Math.round(size * 0.28)
@@ -89,7 +89,7 @@ export const Avatar = React.memo((props: AvatarProps) => {
                             source={flavorIcon}
                             style={{ width: iconSize, height: iconSize }}
                             contentFit="contain"
-                            tintColor={effectiveFlavor === 'codex' || effectiveFlavor === 'copilot' ? theme.colors.text : undefined}
+                            tintColor={effectiveFlavor === 'codex' ? theme.colors.text : undefined}
                         />
                     </View>
                 </View>
@@ -116,14 +116,14 @@ export const Avatar = React.memo((props: AvatarProps) => {
     // Make icons smaller while keeping same circle size
     // Claude slightly bigger than codex
     const circleSize = Math.round(size * 0.35);
-    const iconSize = effectiveFlavor === 'codex' || effectiveFlavor === 'copilot'
+    const iconSize = effectiveFlavor === 'codex'
         ? Math.round(size * 0.25)
         : effectiveFlavor === 'claude'
             ? Math.round(size * 0.28)
             : Math.round(size * 0.35);
 
-    // Only wrap in container if showing flavor icons
-    if (showFlavorIcons) {
+    // Only wrap in container if showing flavor icons and flavor was provided
+    if (showFlavorIcons && flavor !== null) {
         return (
             <View style={[styles.container, { width: size, height: size }]}>
                 <AvatarComponent {...avatarProps} size={size} />
@@ -137,7 +137,7 @@ export const Avatar = React.memo((props: AvatarProps) => {
                         source={flavorIcon}
                         style={{ width: iconSize, height: iconSize }}
                         contentFit="contain"
-                        tintColor={effectiveFlavor === 'codex' || effectiveFlavor === 'copilot' ? theme.colors.text : undefined}
+                        tintColor={effectiveFlavor === 'codex' ? theme.colors.text : undefined}
                     />
                 </View>
             </View>
