@@ -138,7 +138,7 @@ export interface SpawnSessionOptions {
     directory: string;
     approvedNewDirectoryCreation?: boolean;
     token?: string;
-    agent?: 'codex' | 'claude' | 'gemini' | 'openclaw';
+    agent?: 'codex' | 'claude' | 'gemini' | 'openclaw' | 'copilot';
 }
 
 export interface ResumeSessionOptions {
@@ -161,7 +161,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             directory: string
             approvedNewDirectoryCreation?: boolean,
             token?: string,
-            agent?: 'codex' | 'claude' | 'gemini' | 'openclaw',
+            agent?: 'codex' | 'claude' | 'gemini' | 'openclaw' | 'copilot',
         }>(
             machineId,
             'spawn-happy-session',
